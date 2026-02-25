@@ -1,0 +1,54 @@
+name: Deploy report to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'results/*.json'       # new benchmark data
+      - 'report.ps1'           # report generator changed
+      - 'vector_benchmark.cpp' # source snippets embedded in report changed
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:           # allow manual trigger from Actions tab
+
+# Only one deployment can run at a time; cancel older runs in progress.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages:    write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate HTML report
+        shell: pwsh
+        run: |
+          .\report.ps1
+          # Also serve as index.html so the root URL works
+          Copy-Item results\report.html results\index.html
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Deploy only the results/ directory — keeps the Pages root clean.
+          # URLs: /report.html  and  /  (via index.html)
+          path: results
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
