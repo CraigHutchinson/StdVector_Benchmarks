@@ -64,7 +64,15 @@ thermal cooldown between each), then open an HTML report in your browser.
 - `results/{msvc,gcc,clang}.json` — raw Google Benchmark JSON (individual repetitions + aggregates)
 - `results/report.html` — self-contained HTML with Plotly box/whisker plots and a summary table
 
-**[View latest report](https://htmlpreview.github.io/?https://github.com/CraigHutchinson/StdVector_Benchmarks/blob/main/results/report.html)**
+**[View latest report](https://raw.githack.com/CraigHutchinson/StdVector_Benchmarks/main/results/report.html)**
+
+> **Note on report hosting:** `htmlpreview.github.io` rewrites `<script src>` tags
+> asynchronously, which can break CDN-hosted libraries. The link above uses
+> [raw.githack.com](https://raw.githack.com) instead — it serves GitHub raw files with
+> correct MIME types and no script rewriting. For a permanent stable URL, enable
+> **GitHub Pages** in repo Settings → Pages → Source: `main` / `/ (root)`, which will
+> make the report available at
+> `https://craighutchinson.github.io/StdVector_Benchmarks/results/report.html`.
 
 The report table highlights two independent axes:
 - **Green background** — result is within this compiler's own σ of its personal best across all benchmarks
