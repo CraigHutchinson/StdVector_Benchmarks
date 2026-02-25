@@ -4,7 +4,7 @@ A cross-compiler C++23 microbenchmark comparing `std::vector` initialisation
 strategies against raw C-style heap allocation baselines, measured under MSVC,
 GCC, and Clang on Windows.
 
-## [View latest report →](https://craighutchinson.github.io/StdVector_Benchmarks/report.html)
+## [View latest report →](https://craighutchinson.github.io/StdVector_Benchmarks/results/report.html)
 
 Interactive Plotly box/whisker plots + summary table with per-compiler and
 cross-compiler highlighting. Each benchmark row expands to show the exact C++

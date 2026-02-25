@@ -34,10 +34,7 @@ jobs:
 
       - name: Generate HTML report
         shell: pwsh
-        run: |
-          .\report.ps1
-          # Also serve as index.html so the root URL works
-          Copy-Item results\report.html results\index.html
+        run: .\report.ps1
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -45,9 +42,11 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Deploy only the results/ directory — keeps the Pages root clean.
-          # URLs: /report.html  and  /  (via index.html)
-          path: results
+          # Deploy the entire repo root so that results/report.html is served
+          # at /results/report.html — the same path that works when Pages is
+          # deployed from the main branch directly.  This keeps the URL stable
+          # regardless of which Pages source mode is active.
+          path: '.'
 
       - name: Deploy to GitHub Pages
         id: deploy
