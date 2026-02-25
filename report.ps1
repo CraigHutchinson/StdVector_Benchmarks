@@ -279,6 +279,8 @@ $html = @"
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
        background:#f4f5f8;color:#1a1a2e;padding:2rem 2.5rem}
   h1  {font-size:1.55rem;font-weight:700;letter-spacing:-.5px}
+  h1 a{color:inherit;text-decoration:none}
+  h1 a:hover{text-decoration:underline}
   h2  {font-size:.95rem;font-weight:600;color:#555;margin:1.8rem 0 .7rem;
        text-transform:uppercase;letter-spacing:.06em}
   .meta{font-size:.78rem;color:#888;margin:.4rem 0 2rem;display:flex;gap:1.4rem;flex-wrap:wrap}
@@ -315,7 +317,7 @@ $html = @"
 </head>
 <body>
 
-<h1>VectorInitBench &mdash; Compiler Comparison</h1>
+<h1><a href="https://github.com/CraigHutchinson/StdVector_Benchmarks">VectorInitBench</a> &mdash; Compiler Comparison</h1>
 <div class="meta">
   <span class="chip">$runDate</span>
   <span class="chip">$host_</span>
