@@ -1,0 +1,183 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VectorInitBench &mdash; Report</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       background:#f4f5f8;color:#1a1a2e;padding:2rem 2.5rem}
+  h1  {font-size:1.55rem;font-weight:700;letter-spacing:-.5px}
+  h2  {font-size:.95rem;font-weight:600;color:#555;margin:1.8rem 0 .7rem;
+       text-transform:uppercase;letter-spacing:.06em}
+  .meta{font-size:.78rem;color:#888;margin:.4rem 0 2rem;display:flex;gap:1.4rem;flex-wrap:wrap}
+  .chip{background:#fff;border:1px solid #e2e4ea;border-radius:99px;
+        padding:.15rem .7rem;font-size:.75rem}
+  .card{background:#fff;border-radius:12px;padding:1.6rem;
+        box-shadow:0 1px 6px rgba(0,0,0,.07);margin-bottom:1.6rem}
+  #box-chart{width:100%;height:500px}
+  .note{font-size:.72rem;color:#aaa;margin-top:.5rem}
+  table{width:100%;border-collapse:collapse;font-size:.855rem}
+  thead th{background:#f0f1f6;padding:.55rem 1rem;text-align:left;
+            font-weight:600;border-bottom:2px solid #dde}
+  td{padding:.48rem 1rem;border-bottom:1px solid #eef;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  .bname {font-family:"Cascadia Code","Consolas",monospace;font-size:.8rem;color:#333}
+  details summary.bname{cursor:pointer;list-style:disclosure-closed inside;padding:.1rem 0}
+  details[open] summary.bname{list-style-type:disclosure-open}
+  pre.snippet{font-family:"Cascadia Code","Consolas",monospace;font-size:.72rem;
+              background:#f0f4f8;color:#1e293b;border-left:3px solid #c7d2fe;
+              padding:.45rem .75rem;margin:.3rem 0 .1rem;border-radius:0 6px 6px 0;
+              overflow-x:auto;white-space:pre;line-height:1.45}
+  .best        {color:#14532d;background:#bbf7d0}
+  .starred     {font-weight:700}
+  .sd          {font-weight:400;font-size:.75rem;color:#6b9;opacity:.85}
+  .star        {font-size:.75rem;margin-left:.1rem}
+  .star.gold   {color:#16a34a}
+  .star.silver {color:#d97706}
+  .star.bronze {color:#dc2626}
+  .na     {color:#bbb}
+  .legend {font-size:.75rem;color:#666;margin-top:.75rem;display:flex;gap:1.5rem;flex-wrap:wrap}
+  .leg-dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+  footer{font-size:.72rem;color:#bbb;margin-top:2rem;text-align:center}
+</style>
+</head>
+<body>
+
+<h1>VectorInitBench &mdash; Compiler Comparison</h1>
+<div class="meta">
+  <span class="chip">2026-02-25T12:21:02+00:00</span>
+  <span class="chip">PW02RAS4</span>
+  <span class="chip">16&times; CPU @ 2304 MHz</span>
+  <span class="chip">N = 500&thinsp;000 &middot; 20 repetitions</span>
+</div>
+
+<div class="card">
+  <h2>Distribution of wall-clock times per benchmark</h2>
+  <div id="box-chart"></div>
+  <p class="note">
+    Box = mean &plusmn; 0.675&sigma; &nbsp;(normal 25th/75th percentile)&nbsp;&middot;&nbsp;
+    Whiskers = mean &plusmn; 2.5&sigma; &nbsp;&middot;&nbsp; Centre line = median &nbsp;&middot;&nbsp; &times; = mean
+  </p>
+</div>
+
+<div class="card">
+  <h2>Mean time summary &mdash; fastest highlighted</h2>
+  <table>
+    <thead><tr><th>Benchmark</th><th>MSVC 19</th><th>GCC 15.2</th><th>Clang 21.1</th></tr></thead>
+    <tbody>
+<tr><td><details><summary class='bname'>BM_CBaseline</summary><pre class='snippet'>MyStruct* vec = (MyStruct*)new std::byte[ sizeof(MyStruct) * N ];
+for (size_t i = 0; i &lt; N; ++i) {
+    ::new (static_cast&lt;void*&gt;(vec+i)) MyStruct(i, i);
+}
+
+delete[] vec;
+benchmark::DoNotOptimize(vec);</pre></details></td><td class='best starred'>850.2 <span class='sd'>&plusmn;41.5</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>822.2 <span class='sd'>&plusmn;40.4</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>929.5 <span class='sd'>&plusmn;88.3</span> <span class='star gold'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_CBaseline2</summary><pre class='snippet'>MyStruct* vec = (MyStruct*)new std::byte[ sizeof(MyStruct) * N ];
+for (size_t i = 0; i &lt; N; ++i) {
+    vec[i] = MyStruct(i,i);
+}
+delete[] vec;
+benchmark::DoNotOptimize(vec);</pre></details></td><td>2897.1 <span class='sd'>&plusmn;69.8</span> <span class='star silver'>&#9733;</span></td><td class='best starred'>845.2 <span class='sd'>&plusmn;43.9</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>915.4 <span class='sd'>&plusmn;97.7</span> <span class='star gold'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_CBaseline3</summary><pre class='snippet'>MyStruct* vec = (MyStruct*)new std::byte[ sizeof(MyStruct) * N ];
+for (size_t i = 0; i &lt; N; ++i)
+    std::construct_at(vec + i, static_cast&lt;int&gt;(i), static_cast&lt;int&gt;(i));
+delete[] vec;
+benchmark::DoNotOptimize(vec);</pre></details></td><td class='best starred'>842.2 <span class='sd'>&plusmn;47.0</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>831.1 <span class='sd'>&plusmn;45.5</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>905.6 <span class='sd'>&plusmn;69.9</span> <span class='star gold'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_EmplaceBack</summary><pre class='snippet'>std::vector&lt;MyStruct&gt; vec;
+vec.reserve(N);
+for (size_t i = 0; i &lt; N; ++i) {
+    vec.emplace_back(i, i);
+}
+benchmark::DoNotOptimize(vec);</pre></details></td><td class='starred'>1006.4 <span class='sd'>&plusmn;63.5</span> <span class='star gold'>&#9733;</span></td><td class='starred'>969.5 <span class='sd'>&plusmn;33.5</span> <span class='star gold'>&#9733;</span></td><td>1123.8 <span class='sd'>&plusmn;83.4</span> <span class='star silver'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_FromRange</summary><pre class='snippet'>std::vector&lt;MyStruct&gt; vec( std::from_range, 
+    std::views::iota(0uz,N) |
+    std::views::transform(
+        [](size_t i){ 
+            return MyStruct(i,i); 
+        }) );
+
+benchmark::DoNotOptimize(vec);</pre></details></td><td>2913.9 <span class='sd'>&plusmn;60.2</span> <span class='star bronze'>&#9733;</span></td><td class='best starred'>839.4 <span class='sd'>&plusmn;28.2</span> <span class='star gold'>&#9733;</span></td><td class='best'>915.9 <span class='sd'>&plusmn;65.6</span> <span class='star silver'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_FromRangeIterators</summary><pre class='snippet'>auto range = std::views::iota(0uz,N) |
+        std::views::transform(
+            [](size_t i){ 
+                return MyStruct(i,i); 
+            });
+            
+std::vector&lt;MyStruct&gt; vec( std::begin(range), std::end(range) );
+
+benchmark::DoNotOptimize(vec);</pre></details></td><td>2909.9 <span class='sd'>&plusmn;71.3</span> <span class='star bronze'>&#9733;</span></td><td class='best starred'>836.1 <span class='sd'>&plusmn;35.2</span> <span class='star gold'>&#9733;</span></td><td class='best'>934.6 <span class='sd'>&plusmn;94.7</span> <span class='star silver'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_PushBack</summary><pre class='snippet'>std::vector&lt;MyStruct&gt; vec;
+vec.reserve(N);
+for (size_t i = 0; i &lt; N; ++i) {
+    MyStruct obj(i, i);
+    vec.push_back(obj);
+}
+benchmark::DoNotOptimize(vec);</pre></details></td><td>3021.9 <span class='sd'>&plusmn;87.8</span> <span class='star bronze'>&#9733;</span></td><td class='starred'>970.6 <span class='sd'>&plusmn;61.1</span> <span class='star gold'>&#9733;</span></td><td>1186.0 <span class='sd'>&plusmn;99.3</span> <span class='star silver'>&#9733;</span></td></tr>
+    </tbody>
+  </table>
+  <div class="legend">
+    <span><span class="leg-dot" style="background:#bbf7d0;outline:1px solid #15803d"></span> <strong>Green</strong> &mdash; within this compiler&rsquo;s own &sigma; of its personal best</span>
+    <span><strong style="color:#16a34a">&#9733;</strong> Fastest &middot; <strong style="color:#d97706">&#9733;</strong> 2nd &middot; <strong style="color:#dc2626">&#9733;</strong> Slowest &mdash; rank per benchmark (ties share when gap &le; own &sigma;)</span>
+    <span><strong>Bold</strong> = gold rank &middot; &plusmn;&sigma; = std dev across the 20 repetitions</span>
+  </div>
+</div>
+
+<footer>Generated by report.ps1 &nbsp;&middot;&nbsp; google/benchmark v1.9.1</footer>
+
+<script>
+Plotly.newPlot('box-chart', [
+    {
+      type: 'box', name: 'MSVC 19',
+      x:           ["BM_CBaseline","BM_CBaseline2","BM_CBaseline3","BM_EmplaceBack","BM_FromRange","BM_FromRangeIterators","BM_PushBack"],
+      q1:          [822218,2849970,810538,963467,2873275,2861798,2962609],
+      median:      [844126,2895208,848201,994731,2906940,2907098,3010194],
+      q3:          [878275,2944246,873947,1049245,2954547,2958085,3081195],
+      mean:        [850247,2897108,842242,1006356,2913911,2909941,3021902],
+      lowerfence:  [746436,2722521,724819,847508,2763406,2731633,2802298],
+      upperfence:  [954057,3071695,959665,1165205,3064415,3088250,3241506],
+      boxpoints: false,
+      marker: { color: '#4C72B0' },
+      line:   { color: '#4C72B0' }
+    },
+    {
+      type: 'box', name: 'GCC 15.2',
+      x:           ["BM_CBaseline","BM_CBaseline2","BM_CBaseline3","BM_EmplaceBack","BM_FromRange","BM_FromRangeIterators","BM_PushBack"],
+      q1:          [794993,815539,800417,946870,820360,812345,929383],
+      median:      [830472,867712,851860,983182,849244,849219,989971],
+      q3:          [849468,874790,861828,992140,858430,859800,1011883],
+      mean:        [822230,845164,831122,969505,839395,836073,970633],
+      lowerfence:  [721350,735440,717399,885671,768895,748194,817855],
+      upperfence:  [923111,954888,944846,1053339,909895,923951,1123411],
+      boxpoints: false,
+      marker: { color: '#DD8452' },
+      line:   { color: '#DD8452' }
+    },
+    {
+      type: 'box', name: 'Clang 21.1',
+      x:           ["BM_CBaseline","BM_CBaseline2","BM_CBaseline3","BM_EmplaceBack","BM_FromRange","BM_FromRangeIterators","BM_PushBack"],
+      q1:          [869826,849400,858471,1067557,871608,870676,1119004],
+      median:      [923807,886565,897933,1111969,897044,914611,1166351],
+      q3:          [989078,981337,952787,1180109,960161,998518,1253020],
+      mean:        [929452,915369,905629,1123833,915884,934597,1186012],
+      lowerfence:  [708615,671041,730971,915403,751897,697852,937833],
+      upperfence:  [1150289,1159696,1080287,1332262,1079871,1171342,1434191],
+      boxpoints: false,
+      marker: { color: '#55A868' },
+      line:   { color: '#55A868' }
+    }
+], {
+  boxmode: 'group',
+  yaxis:  { title: 'wall-clock time (ns)', zeroline: false, gridcolor: '#f0f1f6' },
+  xaxis:  { tickangle: -20 },
+  legend: { orientation: 'h', y: 1.10, x: 0 },
+  margin: { t: 10, b: 130, l: 75, r: 20 },
+  paper_bgcolor: 'white',
+  plot_bgcolor:  '#fafbfc',
+  font: { family: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', size: 12 }
+}, { responsive: true, displayModeBar: false });
+</script>
+</body>
+</html>

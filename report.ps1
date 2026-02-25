@@ -16,6 +16,59 @@ $ErrorActionPreference = "Stop"
 $ResultsDir = "results"
 $OutFile    = "$ResultsDir\report.html"
 
+# ── Benchmark source-code snippet extraction ───────────────────────────────────
+# Reads vector_benchmark.cpp and extracts the body of each benchmark's
+# "for (auto _ : state) { ... }" loop for display in the HTML report.
+$srcLines = [string[]](Get-Content "vector_benchmark.cpp" -ErrorAction SilentlyContinue)
+
+function Get-StateLoopBody([string]$BenchName) {
+    if (-not $script:srcLines) { return $null }
+    $lines = $script:srcLines
+
+    # Locate the function definition
+    $fIdx = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match "void\s+$BenchName\s*\(") { $fIdx = $i; break }
+    }
+    if ($fIdx -lt 0) { return $null }
+
+    # Locate "for (auto _ : state)" within the function (search up to 25 lines)
+    $lIdx = -1
+    for ($i = $fIdx; $i -lt [math]::Min($fIdx + 25, $lines.Count); $i++) {
+        if ($lines[$i] -match 'for\s*\(auto\s+_\s*:\s*state\)') { $lIdx = $i; break }
+    }
+    if ($lIdx -lt 0) { return $null }
+
+    # Brace-count to find the loop body extent
+    $depth = 0; $bodyStart = -1; $bodyEnd = -1
+    for ($i = $lIdx; $i -lt $lines.Count; $i++) {
+        foreach ($c in [char[]]$lines[$i]) {
+            if     ($c -eq '{') { if ($depth -eq 0) { $bodyStart = $i }; $depth++ }
+            elseif ($c -eq '}') { $depth--; if ($depth -eq 0) { $bodyEnd = $i; break } }
+        }
+        if ($bodyEnd -ge 0) { break }
+    }
+    if ($bodyStart -lt 0 -or $bodyEnd -le $bodyStart) { return $null }
+
+    $body = if ($bodyEnd -gt $bodyStart + 1) { $lines[($bodyStart+1)..($bodyEnd-1)] } else { @() }
+
+    # Strip common leading whitespace
+    $nonEmpty = @($body | Where-Object { $_ -match '\S' })
+    if ($nonEmpty.Count -gt 0) {
+        $minInd = ($nonEmpty | ForEach-Object {
+            if ($_ -match '^( +)') { $Matches[1].Length } else { 0 }
+        } | Measure-Object -Minimum).Minimum
+        if ($minInd -gt 0) {
+            $body = $body | ForEach-Object { if ($_.Length -ge $minInd) { $_.Substring($minInd) } else { $_ } }
+        }
+    }
+    return ($body -join "`n").TrimEnd()
+}
+
+function ConvertTo-HtmlText([string]$s) {
+    $s.Replace('&','&amp;').Replace('<','&lt;').Replace('>','&gt;')
+}
+
 # ── Compiler display order ────────────────────────────────────────────────────
 $Compilers = [ordered]@{
     msvc  = "MSVC 19"
@@ -40,8 +93,8 @@ foreach ($label in $loaded.Keys) {
         if ($b.run_type -ne "aggregate") { continue }
         if ($b.aggregate_name -notin @("mean","median","stddev")) { continue }
 
-        $name = $b.run_name -replace '/\d+$',''   # e.g. BM_EmplaceBack/500000 -> BM_EmplaceBack
-        $name = $name -replace '/500000',''
+        # Strip /500000/repeats:20 (or any /Arg/repeats:N suffix) -> BM_EmplaceBack
+        $name = $b.run_name -replace '/\d+(/repeats:\d+)?$',''
 
         if (-not $stats.Contains($name))  { $stats[$name]  = [ordered]@{} }
         if (-not $stats[$name].Contains($label)) { $stats[$name][$label] = @{} }
@@ -197,7 +250,12 @@ $tableRows = foreach ($bench in $benchNames) {
             "<td$cls>${us} <span class='sd'>&plusmn;${sdUs}</span> <span class='star $medal'>&#9733;</span></td>"
         }
     }
-    "<tr><td class='bname'>$bench</td>$($tds -join '')</tr>"
+    $snippet  = Get-StateLoopBody $bench
+    $codeHtml = if ($snippet) {
+        $esc = ConvertTo-HtmlText $snippet
+        "<details><summary class='bname'>$bench</summary><pre class='snippet'>$esc</pre></details>"
+    } else { "<span class='bname'>$bench</span>" }
+    "<tr><td>$codeHtml</td>$($tds -join '')</tr>"
 }
 
 # ── Context metadata ──────────────────────────────────────────────────────────
@@ -236,6 +294,12 @@ $html = @"
   td{padding:.48rem 1rem;border-bottom:1px solid #eef;white-space:nowrap}
   tr:last-child td{border-bottom:none}
   .bname {font-family:"Cascadia Code","Consolas",monospace;font-size:.8rem;color:#333}
+  details summary.bname{cursor:pointer;list-style:disclosure-closed inside;padding:.1rem 0}
+  details[open] summary.bname{list-style-type:disclosure-open}
+  pre.snippet{font-family:"Cascadia Code","Consolas",monospace;font-size:.72rem;
+              background:#f0f4f8;color:#1e293b;border-left:3px solid #c7d2fe;
+              padding:.45rem .75rem;margin:.3rem 0 .1rem;border-radius:0 6px 6px 0;
+              overflow-x:auto;white-space:pre;line-height:1.45}
   .best        {color:#14532d;background:#bbf7d0}
   .starred     {font-weight:700}
   .sd          {font-weight:400;font-size:.75rem;color:#6b9;opacity:.85}

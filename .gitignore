@@ -1,15 +1,9 @@
-# CMake build directories
+# CMake build directories (one per compiler preset)
 build_msvc/
 build_gcc/
 build_clang/
 
-# CMake download/cache
-.cmake/
-
-# CPM source cache (lives in %LOCALAPPDATA%, not here, but just in case)
-_deps/
-
-# Compiled output other than the tracked report
+# Compiled binaries and intermediate objects
 *.exe
 *.obj
 *.pdb
@@ -17,9 +11,6 @@ _deps/
 *.exp
 *.lib
 
-# Temporary / editor
-*.user
-.vs/
-.vscode/
-*.suo
-*.orig
+# Temporary / scratch files
+compare.ps1
+msvc_codegen_test.cpp
