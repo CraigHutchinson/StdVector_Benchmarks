@@ -1,0 +1,54 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build_${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+
+    {
+      "name": "msvc",
+      "displayName": "MSVC · Visual Studio 2022",
+      "inherits": "base",
+      "generator": "Visual Studio 17 2022"
+    },
+
+    {
+      "name": "gcc",
+      "displayName": "GCC 15.2 · Ninja · MinGW-W64 UCRT (choco)",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER":   "$env{CHOCO_MINGW_BIN}/gcc.exe",
+        "CMAKE_CXX_COMPILER": "$env{CHOCO_MINGW_BIN}/g++.exe",
+        "CMAKE_MAKE_PROGRAM": "$env{VECTBENCH_NINJA}"
+      }
+    },
+
+    {
+      "name": "clang",
+      "displayName": "Clang 21.1 · Ninja · MinGW ABI (choco)",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER":   "$env{CHOCO_LLVM_BIN}/clang.exe",
+        "CMAKE_CXX_COMPILER": "$env{CHOCO_LLVM_BIN}/clang++.exe",
+        "CMAKE_MAKE_PROGRAM": "$env{VECTBENCH_NINJA}",
+        "CMAKE_CXX_FLAGS":    "--target=x86_64-pc-windows-gnu",
+        "CMAKE_C_FLAGS":      "--target=x86_64-pc-windows-gnu"
+      }
+    }
+  ],
+
+  "buildPresets": [
+    { "name": "msvc",  "configurePreset": "msvc",  "configuration": "Release", "jobs": 0 },
+    { "name": "gcc",   "configurePreset": "gcc",                                "jobs": 0 },
+    { "name": "clang", "configurePreset": "clang",                              "jobs": 0 }
+  ]
+}

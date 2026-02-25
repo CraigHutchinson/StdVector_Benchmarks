@@ -1,0 +1,25 @@
+# CMake build directories
+build_msvc/
+build_gcc/
+build_clang/
+
+# CMake download/cache
+.cmake/
+
+# CPM source cache (lives in %LOCALAPPDATA%, not here, but just in case)
+_deps/
+
+# Compiled output other than the tracked report
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# Temporary / editor
+*.user
+.vs/
+.vscode/
+*.suo
+*.orig
