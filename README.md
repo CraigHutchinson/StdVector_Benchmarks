@@ -4,32 +4,25 @@ A cross-compiler C++23 microbenchmark comparing `std::vector` initialisation
 strategies against raw C-style heap allocation baselines, measured under MSVC,
 GCC, and Clang on Windows.
 
-## What is benchmarked
+## [View latest report →](https://craighutchinson.github.io/StdVector_Benchmarks/report.html)
 
-| Benchmark | Description |
-|---|---|
-| `BM_CBaseline` | Raw `malloc` + placement `new` — theoretical lower bound |
-| `BM_CBaseline2` | Raw `malloc` + assignment (`vec[i] = MyStruct(i,i)`) — exposes MSVC store-forward stall |
-| `BM_CBaseline3` | Raw `malloc` + `std::construct_at` — C++20 named alternative to placement `new` |
-| `BM_EmplaceBack` | `vector::reserve` + `emplace_back` |
-| `BM_PushBack` | `vector::reserve` + `push_back` (copy) |
-| `BM_FromRange` | `std::vector` range constructor from `std::views::iota` (C++23) |
-| `BM_FromRangeIterators` | `std::vector(first, last)` from iota iterators |
+Interactive Plotly box/whisker plots + summary table with per-compiler and
+cross-compiler highlighting. Each benchmark row expands to show the exact C++
+code being measured. Automatically redeployed to GitHub Pages on every push.
 
-N = 500 000 elements (4 MB working set, L3-bound), 20 repetitions with
-random interleaving to average out intra-run thermal drift.
+---
 
-## Prerequisites
+## Key findings
 
-| Tool | How to get |
-|---|---|
-| MSVC (VS 2022) | Visual Studio installer — "Desktop development with C++" workload |
-| GCC 15.2 | `choco install mingw` |
-| Clang 21.1 | `choco install llvm` |
-| CMake ≥ 3.25 | Bundled with Visual Studio, or `choco install cmake` |
-| Chocolatey | `winget install Chocolatey.Chocolatey` |
-
-GCC, Clang, and Ninja are installed automatically by `build.ps1` if absent.
+- **Placement `new` and `std::construct_at`** generate identical machine code
+  (2 direct DWORD stores per element) on all three compilers — the theoretical
+  lower bound for this workload.
+- **`BM_CBaseline2` (assignment) is ~3× slower on MSVC** — the compiler
+  materialises `MyStruct(i,i)` as a stack temporary before assignment, causing
+  two 4-byte stores to feed a single 8-byte load (Intel store-forward stall,
+  ~4–5 cycles/iter). GCC and Clang eliminate the temporary via SRoA.
+- **`emplace_back` after `reserve`** is close to the raw baseline on GCC and
+  Clang; MSVC shows a consistent overhead.
 
 ## Quick start
 
@@ -37,53 +30,37 @@ GCC, Clang, and Ninja are installed automatically by `build.ps1` if absent.
 .\build.ps1; .\report.ps1 -Open
 ```
 
-This will configure, build, and run all three compiler variants (with a 30 s
-thermal cooldown between each), then open an HTML report in your browser.
+Configures, builds, and runs all three compiler variants (30 s thermal cooldown
+between each), then opens the HTML report locally.
+
+## What is benchmarked
+
+N = 500 000 `MyStruct { int x, y; }` elements (4 MB working set, L3-bound),
+20 repetitions with random interleaving to average out intra-run thermal drift.
+
+| Benchmark | Description |
+|---|---|
+| `BM_CBaseline` | Raw heap + placement `new` — theoretical lower bound |
+| `BM_CBaseline2` | Raw heap + assignment — exposes MSVC store-forward stall |
+| `BM_CBaseline3` | Raw heap + `std::construct_at` — C++20 equivalent to placement `new` |
+| `BM_EmplaceBack` | `vector::reserve` + `emplace_back` |
+| `BM_PushBack` | `vector::reserve` + `push_back` (named-object copy) |
+| `BM_FromRange` | C++23 `std::from_range` constructor from `views::iota` |
+| `BM_FromRangeIterators` | Two-iterator constructor from a transform view |
 
 ## Build script options
 
 ```powershell
-# Full rebuild + run, open report
-.\build.ps1; .\report.ps1 -Open
-
-# Re-run only (skip compile), no cooldown — useful for quick iteration
-.\build.ps1 -NoBuild -CooldownSec 0
-
-# Single compiler
-.\build.ps1 -Preset gcc
-
-# Single compiler, single benchmark, no rebuild
-.\build.ps1 -Preset msvc -Benchmark BM_CBaseline2 -NoBuild
-
-# Clean rebuild of all compilers
-.\build.ps1 -Clean
+.\build.ps1 -NoBuild -CooldownSec 0   # re-run only, skip compile & cooldown
+.\build.ps1 -Preset gcc               # single compiler
+.\build.ps1 -Preset msvc -Benchmark BM_CBaseline2 -NoBuild  # single benchmark
+.\build.ps1 -Clean                    # wipe build dirs and rebuild all
 ```
-
-## Output
-
-- `results/{msvc,gcc,clang}.json` — raw Google Benchmark JSON (individual repetitions + aggregates)
-- `results/report.html` — self-contained HTML with Plotly box/whisker plots and a summary table
-
-**[View latest report](https://craighutchinson.github.io/StdVector_Benchmarks/report.html)**
-
-The report is automatically regenerated and deployed to GitHub Pages by
-`.github/workflows/pages.yml` on every push that changes benchmark results,
-`report.ps1`, or the C++ source. No manual step needed after a benchmark run.
-
-> **Pages setup (one-time):** In repo Settings → Pages → Build and deployment,
-> set **Source** to **"GitHub Actions"** (not a branch) so the workflow above
-> controls deployment.
-
-The report table highlights two independent axes:
-- **Green background** — result is within this compiler's own σ of its personal best across all benchmarks
-- **★ stars** — gold/silver/bronze for fastest/2nd/3rd per benchmark row (ties within own σ share the medal)
-
-Each benchmark row is clickable to expand the exact C++ code being measured.
 
 ## Compiler flags
 
-All three compilers target the **x86-64-v3** ISA baseline (AVX2 + BMI2 + FMA),
-a portable production-safe target supported by every x86-64 CPU made since ~2015.
+All compilers target the **x86-64-v3** ISA baseline (AVX2 + BMI2 + FMA) —
+supported by every x86-64 CPU made since ~2015.
 
 | Compiler | Key flags |
 |---|---|
@@ -91,12 +68,12 @@ a portable production-safe target supported by every x86-64 CPU made since ~2015
 | GCC | `-O3 -march=x86-64-v3` |
 | Clang | `-O3 -march=x86-64-v3` |
 
-## Key findings
+## Prerequisites
 
-- **Placement `new` and `std::construct_at`** generate identical machine code
-  (2 direct DWORD stores). Both compilers and MSVC match on these.
-- **`BM_CBaseline2` (assignment) is ~3× slower on MSVC** due to a store-forward
-  stall: the compiler materialises a stack temporary, causing two 4-byte stores
-  to feed a single 8-byte load. GCC and Clang eliminate this via SRoA.
-- **`emplace_back` is close-ish to the raw baseline** on GCC and Clang; MSVC leaves
-  a larger gap, making the overhead more visible.
+| Tool | How to get |
+|---|---|
+| MSVC (VS 2022) | Visual Studio installer — "Desktop development with C++" workload |
+| GCC 15.2 | `choco install mingw` (auto-installed by `build.ps1`) |
+| Clang 21.1 | `choco install llvm` (auto-installed by `build.ps1`) |
+| CMake ≥ 3.25 | Bundled with Visual Studio, or `choco install cmake` |
+| Chocolatey | `winget install Chocolatey.Chocolatey` |
