@@ -1,5 +1,6 @@
 # CMake build directories (one per compiler preset)
 build_msvc/
+build_msvc26/
 build_gcc/
 build_clang/
 

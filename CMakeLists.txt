@@ -31,10 +31,36 @@ CPMAddPackage(
         "BENCHMARK_ENABLE_WERROR OFF"
 )
 
+# ── Source-hash header (regenerated at build time when the .cpp changes) ────────
+# cmake/hash_source.cmake computes MD5(vector_benchmark.cpp) and writes
+# source_hash.h into the binary dir.  The benchmark registers this hash as a
+# Google Benchmark context entry so every JSON result is self-describing and
+# report.ps1 can detect stale results that pre-date a source change.
+set(_hash_script "${CMAKE_CURRENT_SOURCE_DIR}/cmake/hash_source.cmake")
+set(_hash_header "${CMAKE_CURRENT_BINARY_DIR}/source_hash.h")
+
+add_custom_command(
+    OUTPUT  "${_hash_header}"
+    COMMAND "${CMAKE_COMMAND}"
+            -D "SRC=${CMAKE_CURRENT_SOURCE_DIR}/vector_benchmark.cpp"
+            -D "OUT=${_hash_header}"
+            -P "${_hash_script}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/vector_benchmark.cpp"
+            "${_hash_script}"
+    COMMENT "Hashing vector_benchmark.cpp -> source_hash.h"
+    VERBATIM
+)
+
+add_custom_target(gen_source_hash DEPENDS "${_hash_header}")
+
 # ── Target ─────────────────────────────────────────────────────────────────────
 add_executable(vector_benchmark vector_benchmark.cpp)
 
+add_dependencies(vector_benchmark gen_source_hash)
+
 target_compile_features(vector_benchmark PRIVATE cxx_std_23)
+
+target_include_directories(vector_benchmark PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 target_link_libraries(vector_benchmark PRIVATE benchmark::benchmark)
 

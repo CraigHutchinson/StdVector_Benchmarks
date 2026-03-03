@@ -57,6 +57,6 @@
     { "name": "msvc",   "configurePreset": "msvc",   "configuration": "Release", "jobs": 0 },
     { "name": "gcc",    "configurePreset": "gcc",                                 "jobs": 0 },
     { "name": "clang",  "configurePreset": "clang",                               "jobs": 0 },
-    { "name": "msvc26", "configurePreset": "msvc26",                              "jobs": 0 }
+    { "name": "msvc26", "configurePreset": "msvc26", "configuration": "Release", "jobs": 0 }
   ]
 }

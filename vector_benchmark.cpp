@@ -7,6 +7,7 @@
 #include <memory>    // std::construct_at
 #include <ranges>
 #include <algorithm>
+#include "source_hash.h"  // BENCHMARK_SOURCE_HASH — generated at build time
 
 // Simple struct with constructor overhead
 struct MyStruct {
@@ -130,7 +131,7 @@ static void BM_CBaseline3(benchmark::State& state) {
 
 
 // Individual runs + aggregates are both written to JSON.
-// Console display is kept compact via --benchmark_report_aggregates_only=true
+// Console display is kept compact via --benchmark_display_aggregates_only=true
 // passed on the command line from build.ps1.
 
 BENCHMARK(BM_FromRange)->Arg(500000)->Repetitions(20);
@@ -141,4 +142,14 @@ BENCHMARK(BM_CBaseline)->Arg(500000)->Repetitions(20);
 BENCHMARK(BM_CBaseline2)->Arg(500000)->Repetitions(20);
 BENCHMARK(BM_CBaseline3)->Arg(500000)->Repetitions(20);
 
-BENCHMARK_MAIN();
+// Custom main registers the MD5 of this source file as a benchmark context
+// entry.  report.ps1 reads it back and errors if any result JSON was produced
+// from a different revision of the source, preventing stale comparisons.
+int main(int argc, char** argv) {
+    ::benchmark::AddCustomContext("source_hash", BENCHMARK_SOURCE_HASH);
+    ::benchmark::Initialize(&argc, argv);
+    if (::benchmark::ReportUnrecognizedArguments(argc, argv)) return 1;
+    ::benchmark::RunSpecifiedBenchmarks();
+    ::benchmark::Shutdown();
+    return 0;
+}

@@ -111,6 +111,33 @@ function Initialize-Toolchains {
     Write-Host "  Ninja: $ninjaVer" -ForegroundColor DarkGray
 }
 
+# -- Detect exact compiler version for a preset --------------------------------
+# Returns a version string (e.g. "19.44.35222", "15.1.0", "21.1.0") or "".
+function Get-CompilerVersion([string]$Preset) {
+    switch ($Preset) {
+        "gcc" {
+            $line = (& "$MinGWBin\g++.exe" --version 2>&1 | Select-Object -First 1)
+            if ($line -match '(\d+\.\d+\.\d+)') { return $Matches[1] }
+        }
+        "clang" {
+            $line = (& "$LLVMBin\clang++.exe" --version 2>&1 | Select-Object -First 1)
+            if ($line -match '(\d+\.\d+\.\d+)') { return $Matches[1] }
+        }
+        { $_ -in "msvc","msvc26" } {
+            $vsDir = if ($Preset -eq "msvc26") { "C:\Program Files\Microsoft Visual Studio\18" } `
+                                               else { "C:\Program Files\Microsoft Visual Studio\2022" }
+            $cl = Get-ChildItem $vsDir -Recurse -Filter cl.exe -ErrorAction SilentlyContinue |
+                  Where-Object { $_.FullName -match 'Hostx64.x64' } |
+                  Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+            if ($cl) {
+                $line = (& $cl 2>&1 | Select-Object -First 1)
+                if ($line -match 'Version\s+(\S+)') { return $Matches[1] }
+            }
+        }
+    }
+    return ""
+}
+
 # -- Preset metadata ----------------------------------------------------------
 $AllPresets = [ordered]@{
     msvc   = "MSVC 19"
@@ -174,21 +201,31 @@ foreach ($p in $Selected) {
     Write-Host ""
     Write-Host "--- Running $($AllPresets[$p])$filterDesc ---" -ForegroundColor Green
 
-    # --benchmark_report_aggregates_only=true keeps the console compact;
-    # the JSON file receives all individual repetition timings for box plots.
-    # --benchmark_enable_random_interleaving=true shuffles the order in which
-    # repetitions of each benchmark run, averaging out intra-run thermal drift.
+    # --benchmark_display_aggregates_only keeps the console compact without
+    # suppressing individual repetition rows from the JSON file.  The JSON
+    # therefore contains both raw timings (for true Plotly box plots) and
+    # Google Benchmark's own aggregate statistics (mean/median/stddev), which
+    # the report uses as the authoritative cross-reference values.
+    # --benchmark_enable_random_interleaving shuffles repetition order to
+    # average out intra-run thermal drift.
+    $compVer   = Get-CompilerVersion $p
+    $majorVer  = if ($compVer -match '^(\d+)') { $Matches[1] } else { "" }
+    $outFile   = if ($majorVer) { "results\$p-$majorVer.json" } else { "results\$p.json" }
+
     $runArgs = @(
-        "--benchmark_report_aggregates_only=true",
+        "--benchmark_display_aggregates_only=true",
         "--benchmark_enable_random_interleaving=true",
         "--benchmark_format=json",
-        "--benchmark_out=results\$p.json"
+        "--benchmark_out=$outFile",
+        "--benchmark_context=preset=$p",
+        "--benchmark_context=compiler=$($AllPresets[$p])"
     )
+    if ($compVer) { $runArgs += "--benchmark_context=compiler_version=$compVer" }
     if ($Benchmark) { $runArgs += "--benchmark_filter=$Benchmark" }
 
     & $exe @runArgs
     if ($LASTEXITCODE -ne 0) { throw "Benchmark failed for '$p'" }
-    $allResults[$AllPresets[$p]] = "results\$p.json"
+    $allResults[$AllPresets[$p]] = $outFile
     $prevPreset = $p
 }
 

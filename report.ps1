@@ -69,81 +69,191 @@ function ConvertTo-HtmlText([string]$s) {
     $s.Replace('&','&amp;').Replace('<','&lt;').Replace('>','&gt;')
 }
 
-# ── Compiler display order ────────────────────────────────────────────────────
-$Compilers = [ordered]@{
-    msvc   = "MSVC 19"
-    msvc26 = "MSVC 19.50"
-    gcc    = "GCC 15.2"
-    clang  = "Clang 21.1"
+# ── Discover result JSON files (newest per preset) ────────────────────────────
+# Files are named {preset}-{major}.json (e.g. gcc-15.json) or {preset}.json.
+# The preset key is extracted by stripping a trailing -{digits} suffix.
+# When multiple files share the same preset key the most recently written wins.
+$preferredOrder = @("msvc","msvc26","gcc","clang")   # preferred display order
+
+$byPreset = [ordered]@{}
+foreach ($file in (Get-ChildItem "$ResultsDir\*.json" -ErrorAction SilentlyContinue |
+                   Sort-Object LastWriteTime -Descending)) {
+    $key = $file.BaseName -replace '-\d+$',''        # "gcc-15" -> "gcc"
+    if (-not $byPreset.ContainsKey($key)) { $byPreset[$key] = $file.FullName }
+}
+if ($byPreset.Count -eq 0) { throw "No result JSON files found in $ResultsDir\" }
+
+# Sort: preferred compilers first in defined order, then any unknown ones A-Z
+$orderedKeys = @(
+    $preferredOrder | Where-Object { $byPreset.ContainsKey($_) }
+    $byPreset.Keys  | Where-Object { $_ -notin $preferredOrder } | Sort-Object
+)
+
+# ── Load JSON and extract display labels ──────────────────────────────────────
+# The label comes from context.compiler (injected by build.ps1) so it always
+# reflects the actual compiler that produced the results.
+$loaded = [ordered]@{}
+foreach ($key in $orderedKeys) {
+    $data  = Get-Content $byPreset[$key] | ConvertFrom-Json
+    $label = if ($data.context.compiler) { $data.context.compiler } else { $key }
+    $loaded[$label] = $data
 }
 
-# ── Load JSON results ─────────────────────────────────────────────────────────
-$loaded = [ordered]@{}
-foreach ($key in $Compilers.Keys) {
-    $f = "$ResultsDir\$key.json"
-    if (Test-Path $f) { $loaded[$Compilers[$key]] = (Get-Content $f | ConvertFrom-Json) }
-    else              { Write-Warning "Missing $f - skipped." }
+# ── Source hash validation ────────────────────────────────────────────────────
+# build.ps1 embeds context.source_hash (MD5 of vector_benchmark.cpp computed by
+# CMake at build time).  Abort here if any JSON was produced from a different
+# revision of the source so the report never silently mixes incompatible data.
+$srcFile = "vector_benchmark.cpp"
+if (Test-Path $srcFile) {
+    $currentHash = (Get-FileHash $srcFile -Algorithm MD5).Hash.ToLower()
+    $stale      = [System.Collections.Generic.List[string]]::new()
+    $unverified = [System.Collections.Generic.List[string]]::new()
+    foreach ($label in $loaded.Keys) {
+        $h = $loaded[$label].context.source_hash
+        if     (-not $h)             { $unverified.Add($label) }
+        elseif ($h -ne $currentHash) { $stale.Add($label) }
+    }
+    if ($stale.Count -gt 0) {
+        throw (
+            "Stale results detected — the following were benchmarked against a " +
+            "different version of vector_benchmark.cpp:`n  $($stale -join ', ')`n" +
+            "Delete the stale JSON files and re-run .\build.ps1 to regenerate.")
+    }
+    if ($unverified.Count -gt 0) {
+        Write-Warning (
+            "Cannot verify source version for: $($unverified -join ', ') " +
+            "(no source_hash in context — regenerate with the latest build.ps1).")
+    }
 }
-if ($loaded.Count -eq 0) { throw "No JSON files found in $ResultsDir\" }
 
 # ── Parse statistics: $stats[$bench][$compiler][$agg] = ns (float) ────────────
+# Used for the summary table (mean, median, stddev columns).
 $stats = [ordered]@{}
+
+# ── Raw per-repetition times: $rawTimes[$bench][$compiler] = [double[]] ────────
+# Populated when benchmark_report_aggregates_only is NOT set (individual
+# run_type="iteration" rows present).  Falls back to aggregate approximation.
+$rawTimes = [ordered]@{}
 
 foreach ($label in $loaded.Keys) {
     foreach ($b in $loaded[$label].benchmarks) {
-        if ($b.run_type -ne "aggregate") { continue }
-        if ($b.aggregate_name -notin @("mean","median","stddev")) { continue }
-
         # Strip /500000/repeats:20 (or any /Arg/repeats:N suffix) -> BM_EmplaceBack
         $name = $b.run_name -replace '/\d+(/repeats:\d+)?$',''
 
-        if (-not $stats.Contains($name))  { $stats[$name]  = [ordered]@{} }
-        if (-not $stats[$name].Contains($label)) { $stats[$name][$label] = @{} }
-        $stats[$name][$label][$b.aggregate_name] = [double]$b.real_time
+        if ($b.run_type -eq "aggregate") {
+            if ($b.aggregate_name -notin @("mean","median","stddev")) { continue }
+            if (-not $stats.Contains($name))        { $stats[$name]        = [ordered]@{} }
+            if (-not $stats[$name].Contains($label)){ $stats[$name][$label] = @{} }
+            $stats[$name][$label][$b.aggregate_name] = [double]$b.real_time
+        } elseif ($b.run_type -eq "iteration") {
+            if (-not $rawTimes.Contains($name))          { $rawTimes[$name]          = [ordered]@{} }
+            if (-not $rawTimes[$name].Contains($label))  { $rawTimes[$name][$label]  = [System.Collections.Generic.List[double]]::new() }
+            $rawTimes[$name][$label].Add([double]$b.real_time)
+        }
     }
 }
 
 $benchNames = [string[]]($stats.Keys | Sort-Object)
 $compLabels = [string[]]$loaded.Keys
 
-# ── Colours ───────────────────────────────────────────────────────────────────
-$palette = @{
-    "MSVC 19"    = "#4C72B0"
-    "MSVC 19.50" = "#9B59B6"
-    "GCC 15.2"   = "#DD8452"
-    "Clang 21.1" = "#55A868"
+# ── Compiler versions from embedded context (injected by build.ps1) ────────────
+$compilerVersions = [ordered]@{}
+foreach ($label in $loaded.Keys) {
+    $ver = $loaded[$label].context.compiler_version
+    $compilerVersions[$label] = if ($ver) { $ver } else { "" }
 }
 
-# ── Build Plotly precomputed-box traces ───────────────────────────────────────
-$traces = foreach ($label in $compLabels) {
-    $xArr  = [System.Collections.Generic.List[string]]::new()
-    $q1Arr = [System.Collections.Generic.List[string]]::new()
-    $medArr= [System.Collections.Generic.List[string]]::new()
-    $q3Arr = [System.Collections.Generic.List[string]]::new()
-    $meanA = [System.Collections.Generic.List[string]]::new()
-    $loArr = [System.Collections.Generic.List[string]]::new()
-    $hiArr = [System.Collections.Generic.List[string]]::new()
+# ── Colours ───────────────────────────────────────────────────────────────────
+# Each compiler family gets its own hue pool; multiple versions of the same
+# family step through it.  Unknown families fall back to a grey sequence.
+$familyColors = @{
+    "MSVC"  = @("#4C72B0","#9B59B6","#2980B9")
+    "GCC"   = @("#DD8452","#E67E22","#D35400")
+    "Clang" = @("#55A868","#27AE60","#1ABC9C")
+}
+$familyIdx = @{}
+$palette   = [ordered]@{}
+$fallback  = @("#7F8C8D","#95A5A6","#BDC3C7")
+$fallbackIdx = 0
 
-    foreach ($bench in $benchNames) {
-        if (-not ($stats[$bench].Contains($label))) { continue }
-        $s   = $stats[$bench][$label]
-        $mu  = [double]$s["mean"]
-        $med = [double]$s["median"]
-        $sig = [double]$s["stddev"]
-
-        $xArr.Add($bench)
-        $q1Arr.Add( ([math]::Max(0, $mu - 0.675*$sig)).ToString("F0") )
-        $medArr.Add( $med.ToString("F0") )
-        $q3Arr.Add( ($mu + 0.675*$sig).ToString("F0") )
-        $meanA.Add( $mu.ToString("F0") )
-        $loArr.Add( ([math]::Max(0, $mu - 2.5*$sig)).ToString("F0") )
-        $hiArr.Add( ($mu + 2.5*$sig).ToString("F0") )
+foreach ($label in $loaded.Keys) {
+    $family = ($label -split ' ')[0]          # "MSVC", "GCC", "Clang", ...
+    if ($familyColors.ContainsKey($family)) {
+        $pool = $familyColors[$family]
+        $idx  = if ($familyIdx.ContainsKey($family)) { $familyIdx[$family] } else { 0 }
+        $palette[$label]      = $pool[$idx % $pool.Count]
+        $familyIdx[$family]   = $idx + 1
+    } else {
+        $palette[$label] = $fallback[$fallbackIdx % $fallback.Count]
+        $fallbackIdx++
     }
+}
 
-    $xJ  = ($xArr  | ForEach-Object { """$_""" }) -join ","
+# ── Build Plotly box traces ────────────────────────────────────────────────────
+# If raw per-repetition data is available (benchmark_report_aggregates_only not
+# set) we feed real y-values so Plotly computes true quartiles.
+# Otherwise we fall back to precomputed boxes from mean/stddev aggregates.
+$hasRawData = ($rawTimes.Count -gt 0)
+
+$traces = foreach ($label in $compLabels) {
     $col = $palette[$label]
 
-    @"
+    if ($hasRawData) {
+        # Real measurements: x = repeated bench names, y = timing values
+        $xVals = [System.Collections.Generic.List[string]]::new()
+        $yVals = [System.Collections.Generic.List[string]]::new()
+
+        foreach ($bench in $benchNames) {
+            if (-not ($rawTimes.Contains($bench) -and $rawTimes[$bench].Contains($label))) { continue }
+            foreach ($t in $rawTimes[$bench][$label]) {
+                $xVals.Add($bench)
+                $yVals.Add($t.ToString("F2"))
+            }
+        }
+
+        $xJ = ($xVals | ForEach-Object { """$_""" }) -join ","
+        $yJ = $yVals -join ","
+
+        @"
+    {
+      type: 'box', name: '$label',
+      x:         [$xJ],
+      y:         [$yJ],
+      boxmean:   'sd',
+      boxpoints: 'outliers',
+      marker: { color: '$col', size: 3, opacity: 0.5 },
+      line:   { color: '$col' }
+    }
+"@
+    } else {
+        # Fallback: precomputed boxes approximated from mean / stddev aggregates
+        $xArr  = [System.Collections.Generic.List[string]]::new()
+        $q1Arr = [System.Collections.Generic.List[string]]::new()
+        $medArr= [System.Collections.Generic.List[string]]::new()
+        $q3Arr = [System.Collections.Generic.List[string]]::new()
+        $meanA = [System.Collections.Generic.List[string]]::new()
+        $loArr = [System.Collections.Generic.List[string]]::new()
+        $hiArr = [System.Collections.Generic.List[string]]::new()
+
+        foreach ($bench in $benchNames) {
+            if (-not ($stats[$bench].Contains($label))) { continue }
+            $s   = $stats[$bench][$label]
+            $mu  = [double]$s["mean"]
+            $med = [double]$s["median"]
+            $sig = [double]$s["stddev"]
+
+            $xArr.Add($bench)
+            $q1Arr.Add( ([math]::Max(0, $mu - 0.675*$sig)).ToString("F0") )
+            $medArr.Add( $med.ToString("F0") )
+            $q3Arr.Add( ($mu + 0.675*$sig).ToString("F0") )
+            $meanA.Add( $mu.ToString("F0") )
+            $loArr.Add( ([math]::Max(0, $mu - 2.5*$sig)).ToString("F0") )
+            $hiArr.Add( ($mu + 2.5*$sig).ToString("F0") )
+        }
+
+        $xJ = ($xArr | ForEach-Object { """$_""" }) -join ","
+
+        @"
     {
       type: 'box', name: '$label',
       x:           [$xJ],
@@ -158,6 +268,7 @@ $traces = foreach ($label in $compLabels) {
       line:   { color: '$col' }
     }
 "@
+    }
 }
 
 $tracesJs = $traces -join ",`n"
@@ -179,7 +290,11 @@ $tracesJs = $traces -join ",`n"
 # (compiler is best for this benchmark but it is not one of its better benchmarks)
 # and green can appear without ★ (compiler is at its best but another compiler is faster).
 
-$headerCells = ($compLabels | ForEach-Object { "<th>$_</th>" }) -join ""
+$headerCells = ($compLabels | ForEach-Object {
+    $ver = $compilerVersions[$_]
+    if ($ver) { "<th>$_<br><span class='ver'>$ver</span></th>" }
+    else       { "<th>$_</th>" }
+}) -join ""
 
 # Pre-compute each compiler's minimum mean across all benchmarks.
 $compilerMin = [ordered]@{}
@@ -218,7 +333,7 @@ $tableRows = foreach ($bench in $benchNames) {
     $currentRank = 0
     $prevMean    = $null
     foreach ($lbl in $sortedLabels) {
-        if ($prevMean -ne $null) {
+        if ($null -ne $prevMean) {
             $gap = $meanMap[$lbl] - $prevMean
             # Only advance the rank if the gap exceeds this compiler's own stddev
             if ($gap -gt $stddevMap[$lbl]) { $currentRank++ }
@@ -312,6 +427,7 @@ $html = @"
   .star.silver {color:#d97706}
   .star.bronze {color:#dc2626}
   .na     {color:#bbb}
+  .ver    {font-size:.7rem;font-weight:400;opacity:.65}
   .legend {font-size:.75rem;color:#666;margin-top:.75rem;display:flex;gap:1.5rem;flex-wrap:wrap}
   .leg-dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
   footer{font-size:.72rem;color:#bbb;margin-top:2rem;text-align:center}
@@ -331,8 +447,11 @@ $html = @"
   <h2>Distribution of wall-clock times per benchmark</h2>
   <div id="box-chart"></div>
   <p class="note">
-    Box = mean &plusmn; 0.675&sigma; &nbsp;(normal 25th/75th percentile)&nbsp;&middot;&nbsp;
-    Whiskers = mean &plusmn; 2.5&sigma; &nbsp;&middot;&nbsp; Centre line = median &nbsp;&middot;&nbsp; &times; = mean
+$(if ($hasRawData) {
+    "    True box plot from $($rawTimes[$benchNames[0]][$compLabels[0]].Count) raw repetitions per benchmark &nbsp;&middot;&nbsp; box = IQR &nbsp;&middot;&nbsp; whiskers = 1.5&times;IQR &nbsp;&middot;&nbsp; &times; = mean"
+} else {
+    "    Box = mean &plusmn; 0.675&sigma; &nbsp;(normal 25th/75th percentile approx.)&nbsp;&middot;&nbsp; Whiskers = mean &plusmn; 2.5&sigma; &nbsp;&middot;&nbsp; Centre line = median &nbsp;&middot;&nbsp; &times; = mean"
+})
   </p>
 </div>
 
