@@ -71,9 +71,10 @@ function ConvertTo-HtmlText([string]$s) {
 
 # ── Compiler display order ────────────────────────────────────────────────────
 $Compilers = [ordered]@{
-    msvc  = "MSVC 19"
-    gcc   = "GCC 15.2"
-    clang = "Clang 21.1"
+    msvc   = "MSVC 19"
+    msvc26 = "MSVC 19.50"
+    gcc    = "GCC 15.2"
+    clang  = "Clang 21.1"
 }
 
 # ── Load JSON results ─────────────────────────────────────────────────────────
@@ -107,9 +108,10 @@ $compLabels = [string[]]$loaded.Keys
 
 # ── Colours ───────────────────────────────────────────────────────────────────
 $palette = @{
-    "MSVC 19"   = "#4C72B0"
-    "GCC 15.2"  = "#DD8452"
-    "Clang 21.1"= "#55A868"
+    "MSVC 19"    = "#4C72B0"
+    "MSVC 19.50" = "#9B59B6"
+    "GCC 15.2"   = "#DD8452"
+    "Clang 21.1" = "#55A868"
 }
 
 # ── Build Plotly precomputed-box traces ───────────────────────────────────────

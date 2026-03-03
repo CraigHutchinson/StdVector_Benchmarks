@@ -3,23 +3,24 @@
 # Toolchain dependencies (installed automatically if absent):
 #   choco install mingw   ->  GCC 15.2  @ C:\ProgramData\mingw64\mingw64\bin
 #   choco install llvm    ->  LLVM 21.1 @ C:\Program Files\LLVM\bin
-#   ninja standalone zip  ->  Ninja     @ C:\ProgramData\mingw64\mingw64\bin  (bundled w/ mingw)
+#   ninja standalone zip  ->  downloaded to user cache
+#   VS 2026 Insiders      ->  https://visualstudio.microsoft.com/vs/preview/
 #
 # Usage:
-#   .\build.ps1                                        # ensure tools, configure + build + run all
-#   .\build.ps1 -Preset gcc                            # only gcc
-#   .\build.ps1 -NoBuild                               # skip configure/build, re-run only
-#   .\build.ps1 -Clean                                 # wipe build dirs for selected presets first
-#   .\build.ps1 -Preset msvc -Benchmark BM_CBaseline2 # run one benchmark on one compiler
-#   .\build.ps1 -Preset msvc -Benchmark BM_CBaseline2 -NoBuild  # re-run without rebuilding
-#   .\build.ps1 -CooldownSec 0                         # disable inter-run thermal cooldown
+#   .\build.ps1                                         # all compilers (msvc, gcc, clang, msvc26)
+#   .\build.ps1 -Preset gcc                             # only gcc
+#   .\build.ps1 -Preset msvc26                          # only MSVC 19.50 (VS 2026)
+#   .\build.ps1 -NoBuild                                # skip configure/build, re-run only
+#   .\build.ps1 -Clean                                  # wipe build dirs for selected presets first
+#   .\build.ps1 -Preset msvc -Benchmark BM_CBaseline2  # run one benchmark on one compiler
+#   .\build.ps1 -CooldownSec 0                          # disable inter-run thermal cooldown
 #
 # -Benchmark   accepts a regex passed verbatim to --benchmark_filter (google/benchmark).
 # -CooldownSec seconds to sleep between compiler runs so the CPU returns to idle temperature.
 #              Default 30 s. Set to 0 to skip (e.g. quick iteration on a single preset).
 
 param(
-    [ValidateSet("all","msvc","gcc","clang")]
+    [ValidateSet("all","msvc","msvc26","gcc","clang")]
     [string]$Preset      = "all",
     [string]$Benchmark   = "",   # regex filter; empty = run all benchmarks
     [int]   $CooldownSec = 30,   # inter-run thermal cooldown; 0 to disable
@@ -48,10 +49,11 @@ function Wait-Cooldown([int]$Seconds, [string]$After) {
 }
 
 # -- Known install paths (choco defaults) ------------------------------------
-$ChocolateyBin = "C:\ProgramData\chocolatey\bin\choco.exe"
-$MinGWBin      = "C:\ProgramData\mingw64\mingw64\bin"
-$LLVMBin       = "C:\Program Files\LLVM\bin"
-$NinjaCache    = "$env:LOCALAPPDATA\VectorInitBench\ninja"    # user-writable
+$ChocolateyBin  = "C:\ProgramData\chocolatey\bin\choco.exe"
+$MinGWBin       = "C:\ProgramData\mingw64\mingw64\bin"
+$LLVMBin        = "C:\Program Files\LLVM\bin"
+$NinjaCache     = "$env:LOCALAPPDATA\VectorInitBench\ninja"   # user-writable
+$VS26InsidersRoot = "C:\Program Files\Microsoft Visual Studio\18\Insiders"
 
 # -- Ensure toolchains are installed -----------------------------------------
 function Install-ChocoPackage([string]$Id, [string]$ProbeExe) {
@@ -110,23 +112,81 @@ function Initialize-Toolchains {
     Write-Host "  Ninja: $ninjaVer" -ForegroundColor DarkGray
 }
 
+# -- VS 2026 Insiders toolchain ----------------------------------------------
+function Initialize-MSVC26 {
+    Write-Host "Checking VS 2026 (MSVC 19.50)..." -ForegroundColor Yellow
+
+    if (-not (Test-Path $VS26InsidersRoot)) {
+        throw "VS 2026 Insiders not found at '$VS26InsidersRoot'. Install from https://visualstudio.microsoft.com/vs/preview/"
+    }
+
+    # Pick the highest MSVC toolset installed under VS 2026 Insiders
+    $msvcDir = Get-ChildItem "$VS26InsidersRoot\VC\Tools\MSVC" |
+               Sort-Object Name -Descending | Select-Object -First 1
+    if (-not $msvcDir) { throw "No MSVC toolset found under $VS26InsidersRoot\VC\Tools\MSVC" }
+
+    $clExe = "$($msvcDir.FullName)\bin\Hostx64\x64\cl.exe"
+    if (-not (Test-Path $clExe)) { throw "cl.exe not found at $clExe" }
+
+    # Load the full VS 2026 developer environment (INCLUDE, LIB, PATH, etc.)
+    # by running VsDevCmd.bat and capturing all resulting env vars.
+    $vsDevCmd = "$VS26InsidersRoot\Common7\Tools\VsDevCmd.bat"
+    $envOutput = cmd /c "`"$vsDevCmd`" -arch=amd64 -no_logo 2>&1 && set" 2>&1
+    foreach ($line in $envOutput) {
+        if ($line -match '^([A-Za-z_][A-Za-z0-9_()]*)=(.*)$') {
+            [System.Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+        }
+    }
+
+    # Override with the specific cl.exe we selected (VsDevCmd may point to a different one)
+    $env:VS26_CL = $clExe
+
+    # Ensure Ninja is available (shared with GCC/Clang cache)
+    $ninjaExe = "$NinjaCache\ninja.exe"
+    if (-not (Test-Path $ninjaExe)) {
+        Write-Host "  Downloading Ninja..." -ForegroundColor Cyan
+        $rel = Invoke-RestMethod "https://api.github.com/repos/ninja-build/ninja/releases/latest" -UseBasicParsing
+        $url = ($rel.assets | Where-Object { $_.name -eq "ninja-win.zip" }).browser_download_url
+        $zip = "$env:TEMP\ninja-win.zip"
+        Invoke-WebRequest $url -OutFile $zip -UseBasicParsing
+        New-Item -ItemType Directory -Force -Path $NinjaCache | Out-Null
+        Expand-Archive $zip -DestinationPath $NinjaCache -Force
+    }
+    if (-not $env:VECTBENCH_NINJA) { $env:VECTBENCH_NINJA = $ninjaExe }
+
+    $clVer = (& $clExe 2>&1 | Select-Object -First 1) -replace '.*Version ','' -replace ' for.*',''
+    Write-Host "  MSVC: $clVer  [$($msvcDir.Name)]" -ForegroundColor DarkGray
+}
+
 # -- Preset metadata ----------------------------------------------------------
 $AllPresets = [ordered]@{
-    msvc  = "MSVC 19"
-    gcc   = "GCC 15.2"
-    clang = "Clang 21.1"
+    msvc   = "MSVC 19"
+    msvc26 = "MSVC 19.50"
+    gcc    = "GCC 15.2"
+    clang  = "Clang 21.1"
 }
 
 $Selected = if ($Preset -eq "all") { $AllPresets.Keys } else { @($Preset) }
 
-# -- Ensure toolchains (skip for msvc-only runs) -----------------------------
-$needsMinGW = $Selected | Where-Object { $_ -ne "msvc" }
+# -- Ensure toolchains -------------------------------------------------------
+$needsMinGW  = @($Selected | Where-Object { $_ -eq "gcc"    -or $_ -eq "clang"  })
+$needsMSVC26 = @($Selected | Where-Object { $_ -eq "msvc26" })
+
 if ($needsMinGW -and -not $NoBuild) { Initialize-Toolchains }
 elseif ($needsMinGW) {
     $env:CHOCO_MINGW_BIN = $MinGWBin
     $env:CHOCO_LLVM_BIN  = $LLVMBin
     $env:VECTBENCH_NINJA = "$NinjaCache\ninja.exe"
     if ($env:PATH -notlike "*$MinGWBin*") { $env:PATH = "$MinGWBin;$env:PATH" }
+}
+
+if ($needsMSVC26 -and -not $NoBuild) { Initialize-MSVC26 }
+elseif ($needsMSVC26) {
+    # NoBuild path: just set env vars so the binary can be located and run
+    $msvcDir = Get-ChildItem "$VS26InsidersRoot\VC\Tools\MSVC" |
+               Sort-Object Name -Descending | Select-Object -First 1
+    $env:VS26_CL = "$($msvcDir.FullName)\bin\Hostx64\x64\cl.exe"
+    if (-not $env:VECTBENCH_NINJA) { $env:VECTBENCH_NINJA = "$NinjaCache\ninja.exe" }
 }
 
 # -- Clean -------------------------------------------------------------------

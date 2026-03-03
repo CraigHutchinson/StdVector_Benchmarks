@@ -43,12 +43,25 @@
         "CMAKE_CXX_FLAGS":    "--target=x86_64-pc-windows-gnu",
         "CMAKE_C_FLAGS":      "--target=x86_64-pc-windows-gnu"
       }
+    },
+
+    {
+      "name": "msvc26",
+      "displayName": "MSVC 19.50 · Ninja · VS 2026 Insiders",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER":   "$env{VS26_CL}",
+        "CMAKE_CXX_COMPILER": "$env{VS26_CL}",
+        "CMAKE_MAKE_PROGRAM": "$env{VECTBENCH_NINJA}"
+      }
     }
   ],
 
   "buildPresets": [
-    { "name": "msvc",  "configurePreset": "msvc",  "configuration": "Release", "jobs": 0 },
-    { "name": "gcc",   "configurePreset": "gcc",                                "jobs": 0 },
-    { "name": "clang", "configurePreset": "clang",                              "jobs": 0 }
+    { "name": "msvc",   "configurePreset": "msvc",   "configuration": "Release", "jobs": 0 },
+    { "name": "gcc",    "configurePreset": "gcc",                                 "jobs": 0 },
+    { "name": "clang",  "configurePreset": "clang",                               "jobs": 0 },
+    { "name": "msvc26", "configurePreset": "msvc26",                              "jobs": 0 }
   ]
 }
