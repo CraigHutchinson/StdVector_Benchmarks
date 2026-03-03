@@ -37,7 +37,7 @@ static void BM_EmplaceBack(benchmark::State& state) {
         std::vector<MyStruct> vec;
         vec.reserve(N);
         for (size_t i = 0; i < N; ++i) {
-            vec.emplace_back(i, i);
+            vec.emplace_back((int)i, (int)i);
         }
         benchmark::DoNotOptimize(vec);
     }
@@ -51,7 +51,7 @@ static void BM_PushBack(benchmark::State& state) {
         std::vector<MyStruct> vec;
         vec.reserve(N);
         for (size_t i = 0; i < N; ++i) {
-            MyStruct obj(i, i);
+            MyStruct obj((int)i, (int)i);
             vec.push_back(obj);
         }
         benchmark::DoNotOptimize(vec);
@@ -66,7 +66,7 @@ static void BM_FromRange(benchmark::State& state) {
             std::views::iota(0uz,N) |
             std::views::transform(
                 [](size_t i){ 
-                    return MyStruct(i,i); 
+                    return MyStruct((int)i, (int)i); 
                 }) );
 
         benchmark::DoNotOptimize(vec);
@@ -80,7 +80,7 @@ static void BM_FromRangeIterators(benchmark::State& state) {
         auto range = std::views::iota(0uz,N) |
                 std::views::transform(
                     [](size_t i){ 
-                        return MyStruct(i,i); 
+                        return MyStruct((int)i, (int)i); 
                     });
                     
         std::vector<MyStruct> vec( std::begin(range), std::end(range) );
@@ -103,7 +103,7 @@ static void BM_CBaseline2(benchmark::State& state) {
     for (auto _ : state) {
         MyStruct* vec = (MyStruct*)new std::byte[ sizeof(MyStruct) * N ];
         for (size_t i = 0; i < N; ++i) {
-            vec[i] = MyStruct(i,i);
+            vec[i] = MyStruct((int)i, (int)i);
         }
         delete[] vec;
         benchmark::DoNotOptimize(vec);
@@ -122,7 +122,7 @@ static void BM_CBaseline3(benchmark::State& state) {
     for (auto _ : state) {
         MyStruct* vec = (MyStruct*)new std::byte[ sizeof(MyStruct) * N ];
         for (size_t i = 0; i < N; ++i)
-            std::construct_at(vec + i, static_cast<int>(i), static_cast<int>(i));
+            std::construct_at(vec + i, (int)i, (int)i);
         delete[] vec;
         benchmark::DoNotOptimize(vec);
     }
