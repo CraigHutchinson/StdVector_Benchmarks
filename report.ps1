@@ -79,13 +79,13 @@ $byPreset = [ordered]@{}
 foreach ($file in (Get-ChildItem "$ResultsDir\*.json" -ErrorAction SilentlyContinue |
                    Sort-Object LastWriteTime -Descending)) {
     $key = $file.BaseName -replace '-\d+$',''        # "gcc-15" -> "gcc"
-    if (-not $byPreset.ContainsKey($key)) { $byPreset[$key] = $file.FullName }
+    if (-not $byPreset.Contains($key)) { $byPreset[$key] = $file.FullName }
 }
 if ($byPreset.Count -eq 0) { throw "No result JSON files found in $ResultsDir\" }
 
 # Sort: preferred compilers first in defined order, then any unknown ones A-Z
 $orderedKeys = @(
-    $preferredOrder | Where-Object { $byPreset.ContainsKey($_) }
+    $preferredOrder | Where-Object { $byPreset.Contains($_) }
     $byPreset.Keys  | Where-Object { $_ -notin $preferredOrder } | Sort-Object
 )
 
@@ -115,14 +115,14 @@ if (Test-Path $srcFile) {
     }
     if ($stale.Count -gt 0) {
         throw (
-            "Stale results detected — the following were benchmarked against a " +
+            "Stale results detected - the following were benchmarked against a " +
             "different version of vector_benchmark.cpp:`n  $($stale -join ', ')`n" +
             "Delete the stale JSON files and re-run .\build.ps1 to regenerate.")
     }
     if ($unverified.Count -gt 0) {
         Write-Warning (
             "Cannot verify source version for: $($unverified -join ', ') " +
-            "(no source_hash in context — regenerate with the latest build.ps1).")
+            "(no source_hash in context - regenerate with the latest build.ps1).")
     }
 }
 

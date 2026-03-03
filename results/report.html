@@ -1,0 +1,188 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VectorInitBench &mdash; Report</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       background:#f4f5f8;color:#1a1a2e;padding:2rem 2.5rem}
+  h1  {font-size:1.55rem;font-weight:700;letter-spacing:-.5px}
+  h1 a{color:inherit;text-decoration:none}
+  h1 a:hover{text-decoration:underline}
+  h2  {font-size:.95rem;font-weight:600;color:#555;margin:1.8rem 0 .7rem;
+       text-transform:uppercase;letter-spacing:.06em}
+  .meta{font-size:.78rem;color:#888;margin:.4rem 0 2rem;display:flex;gap:1.4rem;flex-wrap:wrap}
+  .chip{background:#fff;border:1px solid #e2e4ea;border-radius:99px;
+        padding:.15rem .7rem;font-size:.75rem}
+  .card{background:#fff;border-radius:12px;padding:1.6rem;
+        box-shadow:0 1px 6px rgba(0,0,0,.07);margin-bottom:1.6rem}
+  #box-chart{width:100%;height:500px}
+  .note{font-size:.72rem;color:#aaa;margin-top:.5rem}
+  table{width:100%;border-collapse:collapse;font-size:.855rem}
+  thead th{background:#f0f1f6;padding:.55rem 1rem;text-align:left;
+            font-weight:600;border-bottom:2px solid #dde}
+  td{padding:.48rem 1rem;border-bottom:1px solid #eef;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  .bname {font-family:"Cascadia Code","Consolas",monospace;font-size:.8rem;color:#333}
+  details summary.bname{cursor:pointer;list-style:disclosure-closed inside;padding:.1rem 0}
+  details[open] summary.bname{list-style-type:disclosure-open}
+  pre.snippet{font-family:"Cascadia Code","Consolas",monospace;font-size:.72rem;
+              background:#f0f4f8;color:#1e293b;border-left:3px solid #c7d2fe;
+              padding:.45rem .75rem;margin:.3rem 0 .1rem;border-radius:0 6px 6px 0;
+              overflow-x:auto;white-space:pre;line-height:1.45}
+  .best        {color:#14532d;background:#bbf7d0}
+  .starred     {font-weight:700}
+  .sd          {font-weight:400;font-size:.75rem;color:#6b9;opacity:.85}
+  .star        {font-size:.75rem;margin-left:.1rem}
+  .star.gold   {color:#16a34a}
+  .star.silver {color:#d97706}
+  .star.bronze {color:#dc2626}
+  .na     {color:#bbb}
+  .ver    {font-size:.7rem;font-weight:400;opacity:.65}
+  .legend {font-size:.75rem;color:#666;margin-top:.75rem;display:flex;gap:1.5rem;flex-wrap:wrap}
+  .leg-dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+  footer{font-size:.72rem;color:#bbb;margin-top:2rem;text-align:center}
+</style>
+</head>
+<body>
+
+<h1><a href="https://github.com/CraigHutchinson/StdVector_Benchmarks">VectorInitBench</a> &mdash; Compiler Comparison</h1>
+<div class="meta">
+  <span class="chip">2026-03-03T12:37:32+00:00</span>
+  <span class="chip">PW02RAS4</span>
+  <span class="chip">16&times; CPU @ 2304 MHz</span>
+  <span class="chip">N = 500&thinsp;000 &middot; 20 repetitions</span>
+</div>
+
+<div class="card">
+  <h2>Distribution of wall-clock times per benchmark</h2>
+  <div id="box-chart"></div>
+  <p class="note">
+    True box plot from 20 raw repetitions per benchmark &nbsp;&middot;&nbsp; box = IQR &nbsp;&middot;&nbsp; whiskers = 1.5&times;IQR &nbsp;&middot;&nbsp; &times; = mean
+  </p>
+</div>
+
+<div class="card">
+  <h2>Mean time summary &mdash; fastest highlighted</h2>
+  <table>
+    <thead><tr><th>Benchmark</th><th>MSVC 19<br><span class='ver'>19.44.35222</span></th><th>MSVC 19.50<br><span class='ver'>19.50.35725</span></th><th>GCC 15.2<br><span class='ver'>15.2.0</span></th><th>Clang 21.1<br><span class='ver'>21.1.8</span></th></tr></thead>
+    <tbody>
+<tr><td><details><summary class='bname'>BM_CBaseline</summary><pre class='snippet'>MyStruct* vec = (MyStruct*)new std::byte[ sizeof(MyStruct) * N ];
+for (size_t i = 0; i &lt; N; ++i) {
+    ::new (static_cast&lt;void*&gt;(vec+i)) MyStruct(i, i);
+}
+
+delete[] vec;
+benchmark::DoNotOptimize(vec);</pre></details></td><td class='best starred'>848.8 <span class='sd'>&plusmn;25.8</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>853.7 <span class='sd'>&plusmn;14.6</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>849.7 <span class='sd'>&plusmn;43.6</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>890.1 <span class='sd'>&plusmn;67.1</span> <span class='star gold'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_CBaseline2</summary><pre class='snippet'>MyStruct* vec = (MyStruct*)new std::byte[ sizeof(MyStruct) * N ];
+for (size_t i = 0; i &lt; N; ++i) {
+    vec[i] = MyStruct((int)i, (int)i);
+}
+delete[] vec;
+benchmark::DoNotOptimize(vec);</pre></details></td><td>2819.6 <span class='sd'>&plusmn;33.8</span> <span class='star silver'>&#9733;</span></td><td class='best starred'>855.5 <span class='sd'>&plusmn;22.0</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>866.4 <span class='sd'>&plusmn;53.9</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>878.5 <span class='sd'>&plusmn;58.1</span> <span class='star gold'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_CBaseline3</summary><pre class='snippet'>MyStruct* vec = (MyStruct*)new std::byte[ sizeof(MyStruct) * N ];
+for (size_t i = 0; i &lt; N; ++i)
+    std::construct_at(vec + i, (int)i, (int)i);
+delete[] vec;
+benchmark::DoNotOptimize(vec);</pre></details></td><td class='best starred'>838.6 <span class='sd'>&plusmn;23.6</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>858.4 <span class='sd'>&plusmn;28.4</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>864.4 <span class='sd'>&plusmn;46.4</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>897.4 <span class='sd'>&plusmn;83.9</span> <span class='star gold'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_EmplaceBack</summary><pre class='snippet'>std::vector&lt;MyStruct&gt; vec;
+vec.reserve(N);
+for (size_t i = 0; i &lt; N; ++i) {
+    vec.emplace_back((int)i, (int)i);
+}
+benchmark::DoNotOptimize(vec);</pre></details></td><td class='starred'>987.4 <span class='sd'>&plusmn;25.7</span> <span class='star gold'>&#9733;</span></td><td>1081.5 <span class='sd'>&plusmn;42.2</span> <span class='star silver'>&#9733;</span></td><td class='starred'>1012.0 <span class='sd'>&plusmn;82.1</span> <span class='star gold'>&#9733;</span></td><td class='starred'>1018.8 <span class='sd'>&plusmn;68.2</span> <span class='star gold'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_FromRange</summary><pre class='snippet'>std::vector&lt;MyStruct&gt; vec( std::from_range, 
+    std::views::iota(0uz,N) |
+    std::views::transform(
+        [](size_t i){ 
+            return MyStruct((int)i, (int)i); 
+        }) );
+
+benchmark::DoNotOptimize(vec);</pre></details></td><td>2838.4 <span class='sd'>&plusmn;68.7</span> <span class='star silver'>&#9733;</span></td><td class='best starred'>847.7 <span class='sd'>&plusmn;19.4</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>852.0 <span class='sd'>&plusmn;46.2</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>886.0 <span class='sd'>&plusmn;66.4</span> <span class='star gold'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_FromRangeIterators</summary><pre class='snippet'>auto range = std::views::iota(0uz,N) |
+        std::views::transform(
+            [](size_t i){ 
+                return MyStruct((int)i, (int)i); 
+            });
+            
+std::vector&lt;MyStruct&gt; vec( std::begin(range), std::end(range) );
+
+benchmark::DoNotOptimize(vec);</pre></details></td><td>2830.8 <span class='sd'>&plusmn;71.4</span> <span class='star silver'>&#9733;</span></td><td class='best starred'>858.0 <span class='sd'>&plusmn;19.1</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>891.3 <span class='sd'>&plusmn;97.3</span> <span class='star gold'>&#9733;</span></td><td class='best starred'>909.8 <span class='sd'>&plusmn;77.5</span> <span class='star gold'>&#9733;</span></td></tr>
+<tr><td><details><summary class='bname'>BM_PushBack</summary><pre class='snippet'>std::vector&lt;MyStruct&gt; vec;
+vec.reserve(N);
+for (size_t i = 0; i &lt; N; ++i) {
+    MyStruct obj((int)i, (int)i);
+    vec.push_back(obj);
+}
+benchmark::DoNotOptimize(vec);</pre></details></td><td>2959.5 <span class='sd'>&plusmn;85.0</span> <span class='star bronze'>&#9733;</span></td><td>1087.9 <span class='sd'>&plusmn;48.7</span> <span class='star silver'>&#9733;</span></td><td class='starred'>1001.5 <span class='sd'>&plusmn;78.7</span> <span class='star gold'>&#9733;</span></td><td>1097.8 <span class='sd'>&plusmn;91.8</span> <span class='star silver'>&#9733;</span></td></tr>
+    </tbody>
+  </table>
+  <div class="legend">
+    <span><span class="leg-dot" style="background:#bbf7d0;outline:1px solid #15803d"></span> <strong>Green</strong> &mdash; within this compiler&rsquo;s own &sigma; of its personal best</span>
+    <span><strong style="color:#16a34a">&#9733;</strong> Fastest &middot; <strong style="color:#d97706">&#9733;</strong> 2nd &middot; <strong style="color:#dc2626">&#9733;</strong> Slowest &mdash; rank per benchmark (ties share when gap &le; own &sigma;)</span>
+    <span><strong>Bold</strong> = gold rank &middot; &plusmn;&sigma; = std dev across the 20 repetitions</span>
+  </div>
+</div>
+
+<footer>Generated by report.ps1 &nbsp;&middot;&nbsp; google/benchmark v1.9.1</footer>
+
+<script>
+// htmlpreview.github.io loads <script src> asynchronously via its own loadJS
+// helper, so Plotly may not be defined yet when this inline block runs.
+// Poll until the library is available before calling newPlot.
+(function waitForPlotly() {
+  if (typeof Plotly === 'undefined') { setTimeout(waitForPlotly, 50); return; }
+  Plotly.newPlot('box-chart', [
+    {
+      type: 'box', name: 'MSVC 19',
+      x:         ["BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack"],
+      y:         [856217.52,827993.30,822736.16,820410.71,846128.01,842577.90,835854.58,827898.33,883190.40,850159.15,826766.07,851079.69,860200.22,831917.52,827574.33,889037.95,871412.50,829820.31,855253.13,919067.08,2805778.31,2805497.59,2821608.84,2817665.86,2814084.74,2807370.28,2809428.11,2795730.12,2791114.46,2794132.93,2803603.61,2803291.97,2811820.48,2796252.61,2827022.49,2788311.65,2820551.41,2881433.74,2884667.87,2913354.62,902572.42,837627.98,831466.40,834808.84,830538.69,832200.94,835854.62,823090.09,842047.12,825694.65,824592.90,826071.22,864168.41,837227.31,847457.56,818589.16,827362.12,811318.61,823797.32,896334.14,1021005.76,986184.34,977754.62,992322.62,971614.73,987578.31,966163.05,986438.02,968401.07,961798.80,970174.83,991770.15,972880.32,970307.10,1001915.40,985486.35,968515.66,996065.19,994668.14,1077186.75,2783072.03,2768452.97,2819417.37,2801677.54,2831736.86,2832952.54,2832170.34,2963967.37,3010260.17,2786355.93,2820467.37,2815192.80,2796570.34,2796963.14,2788841.95,2789220.76,2815444.49,2965103.39,2834954.66,2915912.71,3114171.61,2806025.42,2820596.19,2814707.20,2840227.12,2852891.53,2811046.19,2803135.59,2789675.85,2809758.05,2788291.53,2813222.03,2790557.20,2831057.63,2832366.10,2814046.61,2770852.12,2864844.07,2787033.90,2861938.14,3258405.80,3005968.30,2957119.64,2906562.50,2917028.57,2917804.46,2921719.20,2925643.75,2930093.30,2907342.41,2943678.12,3057470.54,2939752.23,2925330.36,2897272.32,2897867.41,2929261.16,2902313.84,2999585.27,3050530.36],
+      boxmean:   'sd',
+      boxpoints: 'outliers',
+      marker: { color: '#4C72B0', size: 3, opacity: 0.5 },
+      line:   { color: '#4C72B0' }
+    },
+    {
+      type: 'box', name: 'MSVC 19.50',
+      x:         ["BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack"],
+      y:         [856820.87,839013.17,850257.37,839513.73,863320.76,845167.41,861175.00,854276.56,865531.92,849294.42,837879.91,856262.61,853910.27,855531.70,846881.36,866813.62,838079.91,848347.88,844125.89,902278.68,852712.17,853311.94,843310.83,832931.25,837000.00,851813.50,832556.81,846554.46,836122.32,850231.47,851668.19,863411.94,933438.62,855023.21,849184.60,876905.36,872760.38,852786.72,868593.42,849976.79,851856.36,837491.83,852902.95,919779.92,863852.34,854141.50,887753.82,839747.52,842741.23,859255.15,842072.02,847017.14,833069.75,838910.04,848747.39,864153.28,865402.95,942875.23,840061.04,835828.38,1133283.67,1056649.26,1075414.06,1056021.02,1129290.76,1059569.75,1061763.72,1124130.25,1079390.90,1109109.24,1096972.29,1077438.69,1028070.41,1041975.10,1072493.17,1100984.07,1038240.16,1059936.81,1199671.22,1029864.26,833986.38,837163.84,830453.24,838674.78,834524.89,843249.78,862603.57,849364.17,831311.27,836211.61,857344.08,916799.00,841792.86,849961.16,846934.93,849918.42,846382.48,834891.74,841509.26,871202.23,837225.17,852510.84,840938.15,849507.63,861085.41,845227.98,841499.20,858312.05,834712.99,853334.81,864122.36,855008.43,852665.06,877434.67,859665.60,846530.25,891365.46,914094.78,852602.28,871815.26,1067016.41,1056921.72,1064613.59,1085569.06,1069021.09,1044112.19,1119753.75,1069112.03,1089258.59,1101782.03,1240035.63,1089657.66,1029598.75,1139395.31,1008281.09,1078366.09,1074991.72,1097103.91,1146374.84,1087666.88],
+      boxmean:   'sd',
+      boxpoints: 'outliers',
+      marker: { color: '#9B59B6', size: 3, opacity: 0.5 },
+      line:   { color: '#9B59B6' }
+    },
+    {
+      type: 'box', name: 'GCC 15.2',
+      x:         ["BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack"],
+      y:         [929312.45,811309.37,812168.81,867404.55,832710.04,859554.22,864503.61,864975.90,833618.34,876220.75,890630.66,797276.97,860436.55,925121.29,790319.68,783586.21,808998.13,852209.64,819189.83,913660.78,997033.75,876137.03,805937.34,843648.44,826938.44,847297.19,851931.41,903752.19,908356.56,894198.44,879745.78,822057.81,938422.50,812696.87,931824.69,788080.16,783158.75,865612.50,870080.78,881098.44,915369.08,866728.11,904731.86,937114.46,855134.00,835258.77,833860.37,824085.27,857144.04,889018.21,855874.03,833121.95,854662.38,975754.75,878201.20,793872.96,898650.20,783442.97,858500.80,838304.15,1122822.68,955924.46,956982.32,964714.29,959583.39,1160576.25,1159917.50,991634.29,986156.79,918505.18,951488.04,1202616.07,999627.32,945525.18,1005240.89,946458.39,1011442.50,976085.00,1030830.00,993445.71,823618.21,849185.81,805872.56,875026.10,852364.39,810856.49,809800.00,892484.20,859439.49,839190.09,831223.83,857715.13,834494.51,787576.71,882249.26,916773.36,849850.74,814954.75,994770.42,852449.93,856601.67,809781.03,817868.19,840866.07,838592.63,838534.49,859046.65,1002005.25,957965.51,826531.14,964901.00,1082853.57,1096734.60,1044961.72,862451.56,808563.62,791036.61,892174.67,820361.72,814073.77,1069747.03,1019662.03,960998.59,943613.91,971028.44,961041.56,1196859.06,988526.09,967475.16,966517.34,1067121.56,1143963.59,1110487.34,921005.47,925691.25,1015659.06,936476.41,916175.16,937897.03,1010705.94],
+      boxmean:   'sd',
+      boxpoints: 'outliers',
+      marker: { color: '#DD8452', size: 3, opacity: 0.5 },
+      line:   { color: '#DD8452' }
+    },
+    {
+      type: 'box', name: 'Clang 21.1',
+      x:         ["BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline2","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_CBaseline3","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_EmplaceBack","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRange","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_FromRangeIterators","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack","BM_PushBack"],
+      y:         [899904.95,994372.29,852383.80,856986.35,878475.64,841244.71,829526.51,836263.19,831079.65,836057.70,843826.51,827388.76,975501.34,949757.43,859089.69,836013.79,1036084.20,878125.97,996988.49,943622.89,843299.33,844752.23,821548.21,822153.35,819481.70,827659.71,863064.84,845579.58,975406.25,855412.95,878887.39,871127.01,881920.65,1019374.44,1009392.19,892946.87,854048.77,887927.23,872882.81,884074.55,852296.79,831212.32,854959.30,844479.12,836474.70,859014.06,851669.48,838859.30,849804.95,961237.22,833001.47,841387.28,821147.39,880610.31,879048.73,970413.12,992179.92,1035255.69,996438.42,1118664.12,988422.62,962845.65,995357.70,1020444.98,964694.38,1267130.66,975481.53,988395.58,973582.46,977384.20,1025661.71,974747.92,986556.63,998750.20,1046492.10,1099381.12,1039582.73,1016837.89,1015952.08,1057497.19,876016.60,827048.06,833001.47,847331.59,839421.42,851830.12,846068.81,848162.38,834189.96,821997.72,853312.99,954038.42,940680.19,993386.48,1006102.68,1039753.15,843238.15,875291.57,859529.18,929952.61,873019.31,843861.61,846464.62,853174.11,855139.96,866099.22,845203.79,836059.93,849157.48,955126.00,812058.15,956999.00,946876.12,981560.16,964524.89,997104.13,1133877.12,907088.39,924966.41,948092.63,1082276.44,1044579.38,1052513.65,1078745.38,1106867.07,1073783.80,1057459.97,1034202.95,1020398.93,1047913.39,1032294.78,1057314.32,1056461.31,1037530.79,1218687.28,1063866.26,1291733.07,1365125.97,1155407.90,1079051.27],
+      boxmean:   'sd',
+      boxpoints: 'outliers',
+      marker: { color: '#55A868', size: 3, opacity: 0.5 },
+      line:   { color: '#55A868' }
+    }
+  ], {
+    boxmode: 'group',
+    yaxis:  { title: 'wall-clock time (ns)', zeroline: false, gridcolor: '#f0f1f6' },
+    xaxis:  { tickangle: -20 },
+    legend: { orientation: 'h', y: 1.10, x: 0 },
+    margin: { t: 10, b: 130, l: 75, r: 20 },
+    paper_bgcolor: 'white',
+    plot_bgcolor:  '#fafbfc',
+    font: { family: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', size: 12 }
+  }, { responsive: true, displayModeBar: false });
+})();
+</script>
+</body>
+</html>
